@@ -99,6 +99,13 @@ program.command('popular-reverse-deps')
             return true;
         });
 
+        if (dependents.length === 0) {
+            console.log(`"${pkgName}" doesn't appear to have any popular reverse dependencies.`);
+            console.log(`Note that the ecosyste.ms API doesn't seem to return accurate results,`);
+            console.log(`so this may omit many packages.`);
+            return;
+        }
+
         console.log(`Fetched ${dependents.length} packages. Resolving dependencies...`);
 
         const realDependents: DependentPackage[] = [];
@@ -165,6 +172,11 @@ program.command('popular-packages-containing')
                 console.warn(`Error fetching metadata for ${pkg.name}`);
             }
         }));
+
+        if (afflictedPackages.length === 0) {
+            console.log(`"${pkgName}" doesn't appear to be contained in any popular packages.`);
+            return;
+        }
 
         for (const dep of afflictedPackages) {
             console.log(`${dep.rootManifest.name}:`);
