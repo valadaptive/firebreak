@@ -10,9 +10,9 @@ After cloning this repo, run `npm run firebreak -- [args]` to execute the main C
 
 This subcommand allows you to search for a nested dependency within a given package. All versions of the nested dependency will be searched for.
 
-### `popular-reverse-deps`
+### `popular-dependents`
 
-This subcommand allows you to view the most popular reverse dependencies for a given package. Note that the ecosyste.ms API doesn't seem to return accurate results, so this may omit many packages.
+This subcommand allows you to view the most popular dependents for a given package. Note that the ecosyste.ms API doesn't seem to return accurate results, so this may omit many packages.
 
 ### `popular-packages-containing`
 
