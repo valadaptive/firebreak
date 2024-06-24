@@ -1,7 +1,9 @@
 import {Command, InvalidArgumentError, Option} from 'commander';
+import pc from 'picocolors';
 
-import {DependentPackage, fetchDependentPackages, fetchPopularPackages} from './ecosyste-ms.js';
-import {DepGraph, resolvePackage, resolveTree} from './packages.js';
+import {DependentPackage, RegistryPackage, fetchDependentPackages, fetchPopularPackages} from './ecosyste-ms.js';
+import {Maintainer, ResolvedManifest, resolvePackage, resolveTree} from './packages.js';
+import {logUpdate, textProgressBar} from './progress.js';
 
 function parseIntArg(value: string) {
     const parsed = parseInt(value);
@@ -48,6 +50,7 @@ program.command('depsearch')
     .argument('<haystack>', 'The package to search within, optionally with a given version')
     .action(async (needle: string, haystack: string) => {
         if (typeof needle !== 'string' || typeof haystack !== 'string') {
+            // eslint-disable-next-line @stylistic/max-len
             throw new Error('Provide the package to search for as the first argument, and the package to search within as the second');
         }
 
@@ -102,8 +105,8 @@ program.command('popular-dependents')
 
         if (dependents.length === 0) {
             console.log(`"${pkgName}" doesn't appear to have any popular dependents.`);
-            console.log(`Note that the ecosyste.ms API doesn't seem to return accurate results,`);
-            console.log(`so this may omit many packages.`);
+            console.log('Note that the ecosyste.ms API doesn\'t seem to return accurate results,');
+            console.log('so this may omit many packages.');
             return;
         }
 
@@ -127,8 +130,9 @@ program.command('popular-dependents')
     });
 
 program.command('popular-packages-containing')
-    .description('Search for popular packages depending on a given package')
-    .argument('<package>', 'The package to search for')
+    .description('Search for popular packages whose dependencies match certain criteria')
+    .option('--package [PACKAGE]', 'Search for this package (all versions) in the dependencies')
+    .option('--maintainer [MAINTAINER]', 'Search for packages published by this user in the dependencies')
     .addOption(new Option(
         '--recent-update [PERIOD]',
         'Only show packages updated this recently (can be specified in "y"ears, "m"onths, "w"eeks, and "d"ays)',
@@ -141,7 +145,19 @@ program.command('popular-packages-containing')
         '--max-results [MAXIMUM]',
         'Only show this many packages',
     ))
-    .action(async (pkgName: string, options: {recentUpdate?: Date; downloads?: number; maxResults?: number}) => {
+    .option('--no-skip-top-level', 'Include top-level packages which directly match the dependency criteria')
+    .action(async (options: {
+        recentUpdate?: Date;
+        downloads?: number;
+        maxResults?: number;
+        package?: string;
+        maintainer?: string;
+        skipTopLevel: boolean;
+    }) => {
+        if (!options.package && !options.maintainer) {
+            throw new Error('Provide at least one of --package or --maintainer');
+        }
+        console.log('Fetching popular packages...');
         let packages = (await fetchPopularPackages(options.maxResults));
 
         packages = packages.filter(pkg => {
@@ -162,28 +178,79 @@ program.command('popular-packages-containing')
 
         console.log(`Checking ${packages.length} popular packages.`);
 
-        const afflictedPackages: DepGraph[] = [];
+        let progress = 0;
+
+        const logger = logUpdate();
+
+        const afflictedPackages: {
+            manifest: RegistryPackage;
+            deps: {manifest: ResolvedManifest; path: string[]}[];
+        }[] = [];
+
+        function maintainerIncludes(maintainer: Maintainer, match: string) {
+            if (typeof maintainer === 'string') {
+                return maintainer.includes(match);
+            }
+
+            return maintainer.name?.includes(match) ||
+                maintainer.email?.includes(match) ||
+                maintainer.url?.includes(match);
+        }
+
         await Promise.all(packages.map(async (pkg) => {
             try {
                 const resolved = await resolveTree(pkg.name, 'latest');
-                if (resolved.depsByVersion.has(pkgName)) {
-                    afflictedPackages.push(resolved);
-                }
+                const deps: {manifest: ResolvedManifest; path: string[]}[] = [];
+                resolved.traverseDeps((dep, path) => {
+                    const isTopLevel = dep.id === resolved.rootManifest.id;
+
+                    if (dep.name === options.package) {
+                        if (!(isTopLevel && options.skipTopLevel)) deps.push({manifest: dep, path});
+                        return true;
+                    }
+
+                    if (
+                        options.maintainer && (
+                            (dep.author && maintainerIncludes(dep.author, options.maintainer)) ||
+                            dep.maintainers?.some(m => maintainerIncludes(m, options.maintainer!)))
+                    ) {
+                        if (!(isTopLevel && options.skipTopLevel)) deps.push({manifest: dep, path});
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                progress++;
+                logger.print(`${textProgressBar(progress / packages.length, 25)} ${pkg.name}`);
+
+                if (deps.length === 0) return;
+                afflictedPackages.push({
+                    manifest: pkg,
+                    deps,
+                });
             } catch (err) {
-                console.warn(`Error fetching metadata for ${pkg.name}`);
+                console.warn(`Error fetching metadata for ${pkg.name}: ${String(err)}`);
             }
         }));
 
+        logger.print('');
+        logger.stop();
+
         if (afflictedPackages.length === 0) {
-            console.log(`"${pkgName}" doesn't appear to be contained in any popular packages.`);
+            console.log('No matches in any popular packages.');
             return;
         }
 
         for (const dep of afflictedPackages) {
             console.log('');
-            console.log(`${dep.rootManifest.name}:`);
-            for (const path of dep.findPathsTo(pkgName)) {
-                console.log(`    ${path.join(' -> ')}`);
+            console.log(`${dep.manifest.name}:`);
+            const matchingDeps = new Set<string>();
+            for (const {manifest} of dep.deps) {
+                matchingDeps.add(manifest.id);
+            }
+            for (const {path} of dep.deps) {
+                console.log(`    ${path.map(id => matchingDeps.has(id) ? pc.bold(pc.red(id)) : id).join(' -> ')}`);
             }
         }
     });

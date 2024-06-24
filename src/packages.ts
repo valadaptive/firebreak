@@ -5,9 +5,10 @@ import {DependencyManifest} from '@pnpm/types';
 import {cacheDirFor} from './cache.js';
 import {Graph} from './graph.js';
 
-const fetchFromRegistry = createFetchFromRegistry({});
+const fetchFromRegistry = createFetchFromRegistry({fullMetadata: true});
 const resolver = createResolver(fetchFromRegistry, () => undefined, {
     cacheDir: cacheDirFor('pnpm'),
+    //fullMetadata: true,
 });
 
 export function resolvePackage(name: string, version: string) {
@@ -17,14 +18,22 @@ export function resolvePackage(name: string, version: string) {
     );
 }
 
+export type Maintainer = string | {name?: string; email?: string; url?: string};
+export type ResolvedManifest = Omit<DependencyManifest, 'author'> & {
+    resolvedDependencies: Record<string, ResolvedManifest>;
+    id: string;
+    maintainers?: Maintainer[];
+    author?: Maintainer;
+};
+
 export async function resolveTree(name: string, version: string) {
     const graph = new Graph<string>();
-    const packages = new Map<string, DependencyManifest>();
+    const packages = new Map<string, ResolvedManifest>();
     const graphPromises: Promise<unknown>[] = [];
-    const promises = new Map<string, Promise<string>>();
+    const promises = new Map<string, Promise<{id: string; manifest: ResolvedManifest | null}>>();
     const allDepsByVersion = new Map<string, Set<string>>();
 
-    function resolveOne(name: string, version: string): Promise<string> {
+    function resolveOne(name: string, version: string): Promise<{id: string; manifest: ResolvedManifest | null}> {
         const promiseID = `${name}_${version}`;
         const existing = promises.get(promiseID);
         if (existing) return existing;
@@ -33,23 +42,28 @@ export async function resolveTree(name: string, version: string) {
             const {id, manifest} = await resolvePackage(name, version);
             if (!manifest) {
                 console.warn(`No manifest for ${id}`);
-                return id;
+                return {id, manifest: null};
             }
 
-            if (packages.has(id)) return id;
+            const existingPackage = packages.get(id);
+            if (existingPackage) return {id, manifest: existingPackage};
 
-            packages.set(id, manifest);
 
-            const resolvedDepPromises: Promise<string>[] = [];
+            const resolvedDepPromises: Promise<{id: string; manifest: ResolvedManifest | null}>[] = [];
+            const resolvedDependencies: Record<string, ResolvedManifest> = {};
             if (manifest.dependencies) {
                 for (const [name, version] of Object.entries(manifest.dependencies)) {
                     resolvedDepPromises.push(resolveOne(name, version));
                 }
             }
 
+            const resolvedManifest = Object.assign(manifest, {resolvedDependencies, id});
+            packages.set(id, resolvedManifest);
+
             graphPromises.push(Promise.all(resolvedDepPromises).then(deps => {
                 for (const dep of deps) {
-                    graph.connect(id, dep);
+                    if (dep.manifest) resolvedDependencies[dep.id] = dep.manifest;
+                    graph.connect(id, dep.id);
                 }
             }));
 
@@ -60,19 +74,19 @@ export async function resolveTree(name: string, version: string) {
             }
             depsByVersion.add(manifest.version);
 
-            return id;
+            return {id, manifest: resolvedManifest};
         })();
 
         promises.set(promiseID, promise);
         return promise;
     }
 
-    const rootId = resolveOne(name, version);
+    const rootDep = resolveOne(name, version);
     await Promise.all(promises.values());
     while (graphPromises.length > 0) {
         await graphPromises.pop();
     }
-    return new DepGraph(graph, packages, await rootId, allDepsByVersion);
+    return new DepGraph(graph, packages, (await rootDep).id, allDepsByVersion);
 }
 
 export class DepGraph {
@@ -83,7 +97,7 @@ export class DepGraph {
 
     constructor(
         graph: Graph<string>,
-        packages: Map<string, DependencyManifest>,
+        packages: Map<string, ResolvedManifest>,
         root: string,
         depsByVersion: Map<string, Set<string>>,
     ) {
@@ -160,5 +174,22 @@ export class DepGraph {
             traverseBack(dest, [dest]);
         }
         return paths;
+    }
+
+    traverseDeps(cb: (dep: ResolvedManifest, path: string[]) => boolean) {
+        const stack: {id: string; path: string[]}[] = [{id: this.root, path: [this.root]}];
+
+        let node;
+        while ((node = stack.pop())) {
+            const {id, path} = node;
+            const pkg = this.packages.get(id)!;
+            if (cb(pkg, path)) {
+                for (const dep of Object.values(pkg.resolvedDependencies)) {
+                    if (!path.includes(dep.id)) {
+                        stack.push({id: dep.id, path: [...path, dep.id]});
+                    }
+                }
+            }
+        }
     }
 }
