@@ -38,10 +38,12 @@ export default tseslint.config(
             }],
             '@typescript-eslint/no-non-null-assertion': 'off',
         },
-        ignores: ['src/gen/**/*'],
     },
     {
         files: ['**/*.js'],
         extends: [tseslint.configs.disableTypeChecked],
+    },
+    {
+        ignores: ['src/gen/**/*'],
     },
 );
