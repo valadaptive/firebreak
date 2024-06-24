@@ -46,7 +46,7 @@ program.command('depsearch')
     .description('Search for a certain (possibly nested) dependency in a given package')
     .argument('<haystack>', 'The package to search within, optionally with a given version')
     .argument('<needle>', 'The dependency to search for (all versions will be searched for)')
-    .action(async (needle: string, haystack: string) => {
+    .action(async (haystack: string, needle: string) => {
         if (typeof haystack !== 'string' || typeof needle !== 'string') {
             throw new Error('Provide the package to search as the first argument and the target package as the second');
         }
