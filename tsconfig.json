@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "moduleResolution": "Node16",
+        "sourceMap": true,
+        "strict": true,
+        "module": "Node16",
+        "target": "ES2022",
+        "outDir": "build",
+        "types": ["node"],
+    },
+    "include": ["src/**/*", "test/**/*"]
+}

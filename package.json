@@ -1,0 +1,39 @@
+{
+  "devDependencies": {
+    "@eslint/js": "^9.5.0",
+    "@stylistic/eslint-plugin": "^2.2.2",
+    "@stylistic/eslint-plugin-migrate": "^2.2.2",
+    "@types/eslint__js": "^8.42.3",
+    "eslint": "^8.57.0",
+    "orval": "^6.30.2",
+    "tslib": "^2.6.3",
+    "tsx": "^4.15.7",
+    "typescript": "^5.5.2",
+    "typescript-eslint": "^7.13.1"
+  },
+  "name": "firebreak",
+  "version": "0.0.1",
+  "description": "Command-line utilities for tracking NPM dependencies ",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@keyv/sqlite": "^3.6.7",
+    "@pnpm/default-resolver": "^20.0.1",
+    "@pnpm/error": "^6.0.1",
+    "@pnpm/fetch": "^8.0.2",
+    "@pnpm/fetching-types": "^6.0.0",
+    "@types/node-fetch": "^2.6.11",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "keyv": "^4.5.4",
+    "zod": "^3.23.8"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "tsc && eslint \"./src\" \"./*.js\"",
+    "gen": "orval --config orval.config.cjs",
+    "firebreak": "tsx src/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
