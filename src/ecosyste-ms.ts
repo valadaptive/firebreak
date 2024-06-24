@@ -4,15 +4,26 @@ import {
     getRegistryPackagesResponse,
     getRegistryPackagesResponseItem,
 } from './gen/zod/ecosysteMsPackages.js';
+import {mkdir} from 'node:fs/promises';
 import {stringify} from 'node:querystring';
+import {dirname} from 'node:path';
 import Keyv from 'keyv';
 
 import {config} from './config.js';
 import {z} from 'zod';
 
-const cache = new Keyv(`sqlite://${config.cacheDir}/ecosyste-ms.sqlite`);
+let cache;
+
+async function readyCache() {
+    if (!cache) {
+        await mkdir(config.cacheDir, {recursive: true});
+        cache = new Keyv(`sqlite://${config.cacheDir}/ecosyste-ms.sqlite`);
+    }
+}
 
 export async function fetchDependentPackages(packageName: string, maxResults = 1000) {
+    await readyCache();
+
     const queryString = stringify({
         page: 0,
         per_page: maxResults,
@@ -36,6 +47,8 @@ export async function fetchDependentPackages(packageName: string, maxResults = 1
 }
 
 export async function fetchPopularPackages(maxResults = 1000) {
+    await readyCache();
+
     const queryString = stringify({
         page: 0,
         per_page: maxResults,
