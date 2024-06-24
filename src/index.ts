@@ -65,9 +65,9 @@ program.command('depsearch')
         console.log(tree.findPathsTo(needle));
     });
 
-program.command('popular-reverse-deps')
-    .description('Search for the most popular reverse dependencies of a given package')
-    .argument('<package>', 'The package to search the reverse dependencies of')
+program.command('popular-dependents')
+    .description('Search for the most popular dependents of a given package')
+    .argument('<package>', 'The package to search the dependents of')
     .addOption(new Option(
         '--recent-update [PERIOD]',
         'Only show packages updated this recently (can be specified in "y"ears, "m"onths, "w"eeks, and "d"ays)',
@@ -100,7 +100,7 @@ program.command('popular-reverse-deps')
         });
 
         if (dependents.length === 0) {
-            console.log(`"${pkgName}" doesn't appear to have any popular reverse dependencies.`);
+            console.log(`"${pkgName}" doesn't appear to have any popular dependents.`);
             console.log(`Note that the ecosyste.ms API doesn't seem to return accurate results,`);
             console.log(`so this may omit many packages.`);
             return;
