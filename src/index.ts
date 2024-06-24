@@ -159,7 +159,7 @@ program.command('popular-packages-containing')
             return true;
         });
 
-        console.log(packages.length);
+        console.log(`Checking ${packages.length} popular packages.`);
 
         const afflictedPackages: DepGraph[] = [];
         await Promise.all(packages.map(async (pkg) => {
@@ -179,6 +179,7 @@ program.command('popular-packages-containing')
         }
 
         for (const dep of afflictedPackages) {
+            console.log('');
             console.log(`${dep.rootManifest.name}:`);
             for (const path of dep.findPathsTo(pkgName)) {
                 console.log(`    ${path.join(' -> ')}`);
