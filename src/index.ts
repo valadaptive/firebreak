@@ -66,6 +66,7 @@ program.command('depsearch')
     });
 
 program.command('popular-dependents')
+    .alias('popular-dependants')
     .description('Search for the most popular dependents of a given package')
     .argument('<package>', 'The package to search the dependents of')
     .addOption(new Option(
